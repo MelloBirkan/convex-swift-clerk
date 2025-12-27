@@ -21,7 +21,7 @@ public enum ClerkAuthError: Error, LocalizedError, Sendable {
   public var errorDescription: String? {
     switch self {
     case .clerkNotLoaded:
-      return "Clerk SDK is not loaded. Call Clerk.shared.load() first."
+      return "Clerk SDK is not loaded. Initialize Clerk with Clerk.configure(publishableKey:) first."
     case .noActiveSession:
       return "No active Clerk session found."
     case .tokenRetrievalFailed(let reason):
@@ -45,11 +45,13 @@ public class ClerkAuthProvider: AuthProvider {
   
   public func login() async throws -> ClerkCredentials {
     try await ensureClerkLoaded()
-    
-    if let creds = try? await fetchCredentials() {
-      return creds
+
+    do {
+      return try await fetchCredentials()
+    } catch ClerkAuthError.noActiveSession {
+      // Fall through to waiting for the user to complete sign-in.
     }
-    
+
     try await waitForSignInCompletion()
     return try await fetchCredentials()
   }
@@ -65,6 +67,10 @@ public class ClerkAuthProvider: AuthProvider {
   
   public func extractIdToken(from authResult: ClerkCredentials) -> String {
     return authResult.idToken
+  }
+
+  public func extractIdToken(authResult: ClerkCredentials) -> String {
+    extractIdToken(from: authResult)
   }
   
   private func ensureClerkLoaded() async throws {
